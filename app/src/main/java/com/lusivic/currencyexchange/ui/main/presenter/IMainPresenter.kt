@@ -6,6 +6,7 @@ import com.lusivic.currencyexchange.ui.main.view.IMainActivity
 
 interface IMainPresenter<V: IMainActivity, I: IMainInteractor>: IPresenter<V, I> {
 
+    fun updateData()
     fun performExchange(amount: Double, currencyFrom: String, currencyTo: String)
 
 }
