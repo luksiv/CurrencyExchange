@@ -40,7 +40,6 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
 
     override fun performExchange(amount: Double, currencyFrom: String, currencyTo: String) {
         getView()?.showProgress()
-        Log.v("performExchange", "$amount $currencyFrom -> $currencyTo")
         if (isBalanceSufficient(currencyFrom, amount)) {
             val exchangeFee = CommonUtils.roundTo(calculateExchangeFee(amount, currencyFrom), 3)
             val adjustedAmount = amount - exchangeFee
@@ -63,6 +62,14 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
         }
     }
 
+    override fun updateData() {
+        getView()?.showProgress()
+        updateBalances()
+        updateExchangeCount()
+        updateFeeCounters()
+        getView()?.hideProgress()
+    }
+
     private fun setUpDatabase() {
         getView()?.showProgress()
         mInteractor?.let {
@@ -74,10 +81,9 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
         }
     }
 
-    override fun updateData() {
-        getView()?.showProgress()
+    private fun updateBalances() {
         mInteractor?.let {
-            mCompositeDisposable.addAll(
+            mCompositeDisposable.add(
                     it.getBalances()
                             .compose(mSchedulerProvider.ioToMainSingleScheduler())
                             .subscribe({ balances ->
@@ -88,34 +94,40 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
                             }, { err ->
                                 Log.e("MainPresenter/getBalances", err.message)
                                 getView()?.hideProgress()
-                            }),
+                            }))
+        }
+    }
+
+    private fun updateExchangeCount() {
+        mInteractor?.let {
+            mCompositeDisposable.addAll(
                     it.getExchangeAmount()
                             .compose(mSchedulerProvider.ioToMainSingleScheduler())
                             .subscribe({ amount ->
                                 getView()?.let {
                                     it.displayExchangeCount(amount)
                                 }
-                            }, { err -> Log.e("MainPresenter/getExchangeAmount", err.message) }),
-                    it.getSumAppliedSum("EUR")
-                            .compose(mSchedulerProvider.ioToMainSingleScheduler())
-                            .subscribe({ amount ->
-                                getView()?.displayFeeSum("EUR", amount)
-                            }, { err -> Log.e("MainPresenter/getSumAppliedSum", err.message) }),
-                    it.getSumAppliedSum("USD")
-                            .compose(mSchedulerProvider.ioToMainSingleScheduler())
-                            .subscribe({ amount ->
-                                getView()?.displayFeeSum("USD", amount)
-                            }, { err -> Log.e("MainPresenter/getSumAppliedSum", err.message) }),
-                    it.getSumAppliedSum("JPY")
-                            .compose(mSchedulerProvider.ioToMainSingleScheduler())
-                            .subscribe({ amount ->
-                                getView()?.displayFeeSum("JPY", amount)
-                            }, { err -> Log.e("MainPresenter/getSumAppliedSum", err.message) })
-            )
+                            }, { err -> Log.e("MainPresenter/getExchangeAmount", err.message) }))
         }
     }
 
-    // Exchange step 1
+    private fun updateFeeCounters() {
+        for (currency in AppConstants.AVAILABLE_CURRENCIES) {
+            updateFeeCounter(currency)
+        }
+    }
+
+    private fun updateFeeCounter(currency: String) {
+        mInteractor?.let {
+            mCompositeDisposable.addAll(
+                    it.getSumAppliedSum(currency)
+                            .compose(mSchedulerProvider.ioToMainSingleScheduler())
+                            .subscribe({ amount ->
+                                getView()?.displayFeeSum(currency, amount)
+                            }, { err -> Log.e("MainPresenter/getSumAppliedSum", err.message) }))
+        }
+    }
+
     private fun isBalanceSufficient(currency: String, amount: Double): Boolean {
         mInteractor?.let {
             return amount <= it.getBalance(currency)
@@ -125,15 +137,16 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
         return false
     }
 
-    // Exchange step 2
-    private fun calculateExchangeFee(amount: Double, currencyFrom: String): Double = when (isExchangeFree()) {
-        true -> 0.0
-        else -> {
-            when (currencyFrom) {
-                "EUR" -> amount * AppConstants.EUR_EXCHANGE_FEE
-                "USD" -> amount * AppConstants.USD_EXCHANGE_FEE
-                "JPY" -> amount * AppConstants.JPY_EXCHANGE_FEE
-                else -> throw IllegalArgumentException("Unidentified currency")
+    private fun calculateExchangeFee(amount: Double, currencyFrom: String): Double {
+        return when (isExchangeFree()) {
+            true -> 0.0
+            else -> {
+                when (currencyFrom) {
+                    "EUR" -> amount * AppConstants.EUR_EXCHANGE_FEE
+                    "USD" -> amount * AppConstants.USD_EXCHANGE_FEE
+                    "JPY" -> amount * AppConstants.JPY_EXCHANGE_FEE
+                    else -> throw IllegalArgumentException("Unidentified currency")
+                }
             }
         }
     }
@@ -145,7 +158,6 @@ class MainPresenter<V : IMainActivity, I : IMainInteractor> @Inject internal con
         return false
     }
 
-    // Exchange step 3
     private fun getExchangeValue(amount: Double, currencyFrom: String, currencyTo: String): Double {
         mInteractor?.let {
             return it.getExchangeValue(amount, currencyFrom, currencyTo)

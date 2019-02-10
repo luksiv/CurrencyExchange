@@ -93,5 +93,6 @@ class MainActivity : BaseView(), IMainActivity {
     }
 
     private fun isExchangeAmountEntered(): Boolean = et_exchange_amount.text.toString() != ""
+
     private fun areCurrenciesDifferent(): Boolean = spn_currency_from.selectedItemPosition != spn_currency_to.selectedItemPosition
 }

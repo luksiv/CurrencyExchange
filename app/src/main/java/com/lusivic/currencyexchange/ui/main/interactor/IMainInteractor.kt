@@ -7,7 +7,7 @@ import com.lusivic.currencyexchange.ui.base.interactor.IInteractor
 import io.reactivex.Completable
 import io.reactivex.Single
 
-interface IMainInteractor: IInteractor {
+interface IMainInteractor : IInteractor {
 
     fun isDatabaseEmpty(): Single<Boolean>
     fun setUpDatabase(): Completable
